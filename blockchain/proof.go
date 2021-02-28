@@ -17,7 +17,7 @@ type ProofOfWork struct {
 	Target *big.Int
 }
 
-func NewProofOfWork(b *Block) *ProofOfWork {
+func NewProof(b *Block) *ProofOfWork {
 	target := big.NewInt(1)
 	target.Lsh(target, uint(256-targetBits))
 
@@ -26,29 +26,18 @@ func NewProofOfWork(b *Block) *ProofOfWork {
 	return pow
 }
 
-func (pow *ProofOfWork) prepareData(nonce int) []byte {
+func (pow *ProofOfWork) PrepareData(nonce int) []byte {
 	data := bytes.Join(
 		[][]byte{
 			pow.Block.PrevHash,
 			pow.Block.Data,
-			IntToHex(int64(nonce)),
-			IntToHex(int64(targetBits)),
+			ToHex(int64(nonce)),
+			ToHex(int64(targetBits)),
 		},
 		[]byte{},
 	)
 
 	return data
-}
-
-func IntToHex(num int64) []byte {
-	buff := new(bytes.Buffer)
-	err := binary.Write(buff, binary.BigEndian, num)
-	if err != nil {
-		log.Panic(err)
-
-	}
-
-	return buff.Bytes()
 }
 
 func (pow *ProofOfWork) Run() (int, []byte) {
@@ -57,9 +46,8 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 
 	nonce := 0
 
-	fmt.Printf("Mining the block containing \"%s\"\n", pow.Block.Data)
 	for nonce < math.MaxInt64 {
-		data := pow.prepareData(nonce)
+		data := pow.PrepareData(nonce)
 		hash = sha256.Sum256(data)
 
 		fmt.Printf("\r%x", hash)
@@ -80,10 +68,21 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 func (pow *ProofOfWork) Validate() bool {
 	var intHash big.Int
 
-	data := pow.prepareData(pow.Block.Nonce)
+	data := pow.PrepareData(pow.Block.Nonce)
 
 	hash := sha256.Sum256(data)
 	intHash.SetBytes(hash[:])
 
 	return intHash.Cmp(pow.Target) == -1
+}
+
+func ToHex(num int64) []byte {
+	buff := new(bytes.Buffer)
+	err := binary.Write(buff, binary.BigEndian, num)
+	if err != nil {
+		log.Panic(err)
+
+	}
+
+	return buff.Bytes()
 }
