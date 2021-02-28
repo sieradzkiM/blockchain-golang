@@ -1,10 +1,5 @@
 package blockchain
 
-import (
-	"bytes"
-	"crypto/sha256"
-)
-
 type Block struct {
 	/*
 		:Data - Keeps the record of all the completed transaction in the block.
@@ -14,6 +9,7 @@ type Block struct {
 	Data     []byte
 	Hash     []byte
 	PrevHash []byte
+	Nonce    int
 }
 
 type BlockChain struct {
@@ -23,15 +19,14 @@ type BlockChain struct {
 	Blocks []*Block
 }
 
-func (b *Block) calculateHash() {
-	record := bytes.Join([][]byte{b.Data, b.PrevHash}, []byte{})
-	hash := sha256.Sum256(record)
-	b.Hash = hash[:]
-}
-
 func createBlock(data string, prevHash []byte) *Block {
-	block := &Block{[]byte(data), []byte{}, prevHash}
-	block.calculateHash()
+	block := &Block{[]byte(data), []byte{}, prevHash, 0}
+	//block.calculateHash()
+	pow := NewProofOfWork(block)
+	nonce, hash := pow.Run()
+	block.Hash = hash[:]
+	block.Nonce = nonce
+
 	return block
 
 }
