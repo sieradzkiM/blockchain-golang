@@ -10,7 +10,7 @@ import (
 	"math/big"
 )
 
-const targetBits = 22
+const targetBits = 21
 
 type ProofOfWork struct {
 	Block  *Block
@@ -30,7 +30,7 @@ func (pow *ProofOfWork) PrepareData(nonce int) []byte {
 	data := bytes.Join(
 		[][]byte{
 			pow.Block.PrevHash,
-			pow.Block.Data,
+			pow.Block.HashTransactions(),
 			ToHex(int64(nonce)),
 			ToHex(int64(targetBits)),
 		},
