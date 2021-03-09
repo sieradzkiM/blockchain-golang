@@ -15,7 +15,7 @@ import (
 	"strings"
 )
 
-const subsidy = 100
+const subsidy = 20
 
 type Transaction struct {
 	ID      []byte
@@ -23,19 +23,19 @@ type Transaction struct {
 	Outputs []TxOutput
 }
 
-func (tx *Transaction) SetID() {
-	var encoded bytes.Buffer
-	var hash [32]byte
+//func (tx *Transaction) SetID() {
+//	var encoded bytes.Buffer
+//	var hash [32]byte
+//
+//	encode := gob.NewEncoder(&encoded)
+//	err := encode.Encode(tx)
+//	Handle(err)
+//
+//	hash = sha256.Sum256(encoded.Bytes())
+//	tx.ID = hash[:]
+//}
 
-	encode := gob.NewEncoder(&encoded)
-	err := encode.Encode(tx)
-	Handle(err)
-
-	hash = sha256.Sum256(encoded.Bytes())
-	tx.ID = hash[:]
-}
-
-func (tx Transaction) Serialized() []byte {
+func (tx Transaction) Serialize() []byte {
 	var encoded bytes.Buffer
 
 	enc := gob.NewEncoder(&encoded)
@@ -52,7 +52,7 @@ func (tx *Transaction) Hash() []byte {
 	txCopy := *tx
 	txCopy.ID = []byte{}
 
-	hash = sha256.Sum256(txCopy.Serialized())
+	hash = sha256.Sum256(txCopy.Serialize())
 
 	return hash[:]
 
@@ -167,20 +167,22 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 	return txCopy
 }
 
-func CoinbaseTx(recipient, data string) *Transaction {
+func CoinbaseTx(to, data string) *Transaction {
 	if data == "" {
-		data = fmt.Sprintf("Reward to %s", recipient)
+		randData := make([]byte, 24)
+		_, err := rand.Read(randData)
+		Handle(err)
+		data = fmt.Sprintf("%x", randData)
 	}
 
 	txin := TxInput{[]byte{}, -1, nil, []byte(data)}
-	txout := NewTxOutput(100, recipient)
+	txout := NewTxOutput(subsidy, to)
 
 	tx := Transaction{nil, []TxInput{txin}, []TxOutput{*txout}}
-	tx.SetID()
+	tx.ID = tx.Hash()
 
 	return &tx
 }
-
 func (tx *Transaction) IsCoinbase() bool {
 	return len(tx.Inputs) == 1 && len(tx.Inputs[0].ID) == 0 && tx.Inputs[0].OutputIndex == -1
 }
