@@ -18,6 +18,7 @@ type UTXOSet struct {
 }
 
 func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
+	var v []byte
 	unspentOuts := make(map[string][]int)
 	accumulated := 0
 	db := u.Blockchain.Database
@@ -31,7 +32,6 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 		for it.Seek(utxoPrefix); it.ValidForPrefix(utxoPrefix); it.Next() {
 			item := it.Item()
 			k := item.Key()
-			var v []byte
 			err := item.Value(func(val []byte) error {
 				v = val
 				return nil
@@ -43,7 +43,7 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 
 			for outIdx, out := range outs.Outputs {
 				if out.IsLockedWithKey(pubKeyHash) && accumulated < amount {
-					accumulated += out.Amount
+					accumulated += out.Value
 					unspentOuts[txID] = append(unspentOuts[txID], outIdx)
 				}
 			}
@@ -51,11 +51,13 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 		return nil
 	})
 	Handle(err)
+
 	return accumulated, unspentOuts
 }
 
-func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TxOutput {
+func (u UTXOSet) FindUnspentTransactions(pubKeyHash []byte) []TxOutput {
 	var UTXOs []TxOutput
+	var v []byte
 
 	db := u.Blockchain.Database
 
@@ -67,21 +69,19 @@ func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TxOutput {
 
 		for it.Seek(utxoPrefix); it.ValidForPrefix(utxoPrefix); it.Next() {
 			item := it.Item()
-			var v []byte
 			err := item.Value(func(val []byte) error {
 				v = val
 				return nil
 			})
 			Handle(err)
 			outs := DeserializeOutputs(v)
-
 			for _, out := range outs.Outputs {
 				if out.IsLockedWithKey(pubKeyHash) {
 					UTXOs = append(UTXOs, out)
 				}
 			}
-		}
 
+		}
 		return nil
 	})
 	Handle(err)
@@ -120,9 +120,7 @@ func (u UTXOSet) Reindex() {
 	err := db.Update(func(txn *badger.Txn) error {
 		for txId, outs := range UTXO {
 			key, err := hex.DecodeString(txId)
-			if err != nil {
-				return err
-			}
+			Handle(err)
 			key = append(utxoPrefix, key...)
 
 			err = txn.Set(key, outs.Serialize())
@@ -136,6 +134,7 @@ func (u UTXOSet) Reindex() {
 
 func (u *UTXOSet) Update(block *Block) {
 	db := u.Blockchain.Database
+	var v []byte
 
 	err := db.Update(func(txn *badger.Txn) error {
 		for _, tx := range block.Transactions {
@@ -145,7 +144,7 @@ func (u *UTXOSet) Update(block *Block) {
 					inID := append(utxoPrefix, in.ID...)
 					item, err := txn.Get(inID)
 					Handle(err)
-					var v []byte
+
 					err = item.Value(func(val []byte) error {
 						v = val
 						return nil
@@ -155,7 +154,7 @@ func (u *UTXOSet) Update(block *Block) {
 					outs := DeserializeOutputs(v)
 
 					for outIdx, out := range outs.Outputs {
-						if outIdx != in.OutputIndex {
+						if outIdx != in.Out {
 							updatedOuts.Outputs = append(updatedOuts.Outputs, out)
 						}
 					}
@@ -164,7 +163,6 @@ func (u *UTXOSet) Update(block *Block) {
 						if err := txn.Delete(inID); err != nil {
 							log.Panic(err)
 						}
-
 					} else {
 						if err := txn.Set(inID, updatedOuts.Serialize()); err != nil {
 							log.Panic(err)
@@ -172,7 +170,6 @@ func (u *UTXOSet) Update(block *Block) {
 					}
 				}
 			}
-
 			newOutputs := TxOutputs{}
 			for _, out := range tx.Outputs {
 				newOutputs.Outputs = append(newOutputs.Outputs, out)

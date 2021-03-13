@@ -10,7 +10,7 @@ import (
 	"math/big"
 )
 
-const targetBits = 21
+const Difficulty = 12
 
 type ProofOfWork struct {
 	Block  *Block
@@ -19,20 +19,20 @@ type ProofOfWork struct {
 
 func NewProof(b *Block) *ProofOfWork {
 	target := big.NewInt(1)
-	target.Lsh(target, uint(256-targetBits))
+	target.Lsh(target, uint(256-Difficulty))
 
 	pow := &ProofOfWork{b, target}
 
 	return pow
 }
 
-func (pow *ProofOfWork) PrepareData(nonce int) []byte {
+func (pow *ProofOfWork) InitData(nonce int) []byte {
 	data := bytes.Join(
 		[][]byte{
 			pow.Block.PrevHash,
 			pow.Block.HashTransactions(),
 			ToHex(int64(nonce)),
-			ToHex(int64(targetBits)),
+			ToHex(int64(Difficulty)),
 		},
 		[]byte{},
 	)
@@ -47,7 +47,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	nonce := 0
 
 	for nonce < math.MaxInt64 {
-		data := pow.PrepareData(nonce)
+		data := pow.InitData(nonce)
 		hash = sha256.Sum256(data)
 
 		fmt.Printf("\r%x", hash)
@@ -68,7 +68,7 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 func (pow *ProofOfWork) Validate() bool {
 	var intHash big.Int
 
-	data := pow.PrepareData(pow.Block.Nonce)
+	data := pow.InitData(pow.Block.Nonce)
 
 	hash := sha256.Sum256(data)
 	intHash.SetBytes(hash[:])
